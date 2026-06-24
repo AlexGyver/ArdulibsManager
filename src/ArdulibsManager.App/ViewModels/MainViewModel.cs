@@ -24,6 +24,7 @@ public sealed class MainViewModel : ObservableObject
     private string _librariesPath = string.Empty;
     private string _repositoryListUrl = AppSettings.DefaultRepositoryListUrl;
     private string? _githubToken;
+    private bool _checkUpdatesOnStartup = true;
 
     public ObservableCollection<SearchResult> SearchResults { get; } = new();
     public ObservableCollection<InstalledLibrary> InstalledLibraries { get; } = new();
@@ -57,6 +58,12 @@ public sealed class MainViewModel : ObservableObject
         set => SetProperty(ref _githubToken, value);
     }
 
+    public bool CheckUpdatesOnStartup
+    {
+        get => _checkUpdatesOnStartup;
+        set => SetProperty(ref _checkUpdatesOnStartup, value);
+    }
+
     public string Status
     {
         get => _status;
@@ -78,6 +85,7 @@ public sealed class MainViewModel : ObservableObject
     public AsyncRelayCommand LoadVersionsCommand { get; }
     public AsyncRelayCommand RemoveCommand { get; }
     public AsyncRelayCommand UpdateCommand { get; }
+    public AsyncRelayCommand UpdateAllCommand { get; }
     public RelayCommand BrowseLibrariesCommand { get; }
     public RelayCommand OpenFolderCommand { get; }
 
@@ -95,12 +103,13 @@ public sealed class MainViewModel : ObservableObject
         InitializeCommand = new AsyncRelayCommand(InitializeAsync);
         RefreshRegistryCommand = new AsyncRelayCommand(RefreshRegistryFromSettingsAsync);
         SearchCommand = new AsyncRelayCommand(SearchAsync);
-        RescanCommand = new AsyncRelayCommand(ScanInstalledAsync);
+        RescanCommand = new AsyncRelayCommand(RefreshInstalledListAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync);
         InstallCommand = new AsyncRelayCommand(async p => await InstallSelectedAsync(p as SearchResult));
         LoadVersionsCommand = new AsyncRelayCommand(async p => await LoadTagsForResultAsync(p as SearchResult));
         RemoveCommand = new AsyncRelayCommand(async p => await RemoveAsync(p as InstalledLibrary));
         UpdateCommand = new AsyncRelayCommand(async p => await UpdateAsync(p as InstalledLibrary));
+        UpdateAllCommand = new AsyncRelayCommand(UpdateAllWithUpdatesAsync);
         BrowseLibrariesCommand = new RelayCommand(BrowseLibraries);
         OpenFolderCommand = new RelayCommand(p => OpenFolder((p as InstalledLibrary)?.LocalPath ?? LibrariesPath));
     }
@@ -114,9 +123,11 @@ public sealed class MainViewModel : ObservableObject
             LibrariesPath = settings.LibrariesPath;
             RepositoryListUrl = string.IsNullOrWhiteSpace(settings.RepositoryListUrl) ? AppSettings.DefaultRepositoryListUrl : settings.RepositoryListUrl;
             GitHubToken = settings.GitHubToken;
+            CheckUpdatesOnStartup = settings.CheckUpdatesOnStartup;
             await LoadRegistryAsync(force: false);
             await ScanInstalledAsync();
-            _ = CheckUpdatesAsync();
+            if (CheckUpdatesOnStartup)
+                _ = CheckUpdatesAsync(showPopup: true);
         }
         catch (Exception ex)
         {
@@ -134,6 +145,7 @@ public sealed class MainViewModel : ObservableObject
         settings.LibrariesPath = LibrariesPath;
         settings.RepositoryListUrl = string.IsNullOrWhiteSpace(RepositoryListUrl) ? AppSettings.DefaultRepositoryListUrl : RepositoryListUrl.Trim();
         settings.GitHubToken = GitHubToken;
+        settings.CheckUpdatesOnStartup = CheckUpdatesOnStartup;
         await _settings.SaveAsync(settings);
         await LoadRegistryAsync(force: true);
     }
@@ -207,6 +219,12 @@ public sealed class MainViewModel : ObservableObject
         finally { result.IsLoadingTags = false; }
     }
 
+    private async Task RefreshInstalledListAsync()
+    {
+        await ScanInstalledAsync();
+        await CheckUpdatesAsync();
+    }
+
     private async Task ScanInstalledAsync()
     {
         Status = "Сканирование установленных библиотек...";
@@ -218,8 +236,10 @@ public sealed class MainViewModel : ObservableObject
         Log(Status);
     }
 
-    private async Task CheckUpdatesAsync()
+    private async Task CheckUpdatesAsync(bool showPopup = false)
     {
+        var updated = new List<InstalledLibrary>();
+
         foreach (var lib in InstalledLibraries.ToList())
         {
             if (string.IsNullOrWhiteSpace(lib.Url)) continue;
@@ -232,12 +252,23 @@ public sealed class MainViewModel : ObservableObject
                 lib.LatestVersion = latest;
                 lib.HasUpdate = VersionService.IsNewer(latest, lib.Version);
                 lib.Status = lib.HasUpdate ? "Есть обновление" : "Актуально";
+                if (lib.HasUpdate) updated.Add(lib);
             }
             catch (Exception ex)
             {
                 lib.Status = "Не удалось проверить: " + ex.Message;
             }
             finally { lib.IsChecking = false; }
+        }
+
+        if (showPopup && updated.Count > 0)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Есть обновления для библиотек:");
+            sb.AppendLine();
+            foreach (var lib in updated.OrderBy(x => x.Name))
+                sb.AppendLine($"• {lib.Name} {lib.Version} → {lib.LatestVersion}");
+            MessageBox.Show(sb.ToString(), "Доступны обновления", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
@@ -337,6 +368,52 @@ public sealed class MainViewModel : ObservableObject
         finally { IsBusy = false; }
     }
 
+    private async Task UpdateAllWithUpdatesAsync()
+    {
+        var libs = InstalledLibraries.Where(x => x.HasUpdate && !string.IsNullOrWhiteSpace(x.Url)).ToList();
+        if (libs.Count == 0)
+        {
+            MessageBox.Show("Библиотек с обновлениями не найдено.", "Обновление библиотек", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show($"Обновить библиотеки с доступными обновлениями?\nКоличество: {libs.Count}", "Обновление библиотек", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        IsBusy = true;
+        try
+        {
+            foreach (var lib in libs)
+            {
+                var repo = RepositoryRegistryService.ParseGithubUrl(lib.Url!);
+                if (repo is null)
+                {
+                    Log("Пропущено: не удалось определить GitHub repo для " + lib.Name);
+                    continue;
+                }
+
+                var tag = lib.LatestVersion ?? await _github.GetLatestTagNameAsync(repo);
+                if (string.IsNullOrWhiteSpace(tag))
+                {
+                    Log("Пропущено: не найдена свежая версия для " + lib.Name);
+                    continue;
+                }
+
+                Log($"Обновление библиотеки: {lib.Name} -> {tag}");
+                await _installer.InstallAsync(repo, tag, LibrariesPath, new Progress<string>(Log), lib.LocalPath);
+            }
+
+            await ScanInstalledAsync();
+            await CheckUpdatesAsync();
+        }
+        catch (Exception ex)
+        {
+            Log("Ошибка массового обновления: " + ex.Message);
+            MessageBox.Show(ex.Message, "Ошибка массового обновления", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally { IsBusy = false; }
+    }
+
     private async Task RemoveAsync(InstalledLibrary? lib)
     {
         if (lib is null) return;
@@ -353,6 +430,7 @@ public sealed class MainViewModel : ObservableObject
         settings.LibrariesPath = LibrariesPath;
         settings.RepositoryListUrl = string.IsNullOrWhiteSpace(RepositoryListUrl) ? AppSettings.DefaultRepositoryListUrl : RepositoryListUrl.Trim();
         settings.GitHubToken = GitHubToken;
+        settings.CheckUpdatesOnStartup = CheckUpdatesOnStartup;
         await _settings.SaveAsync(settings);
         Log("Настройки сохранены");
         await ScanInstalledAsync();

@@ -33,7 +33,6 @@
 
                     <StackPanel Grid.Row="0" Margin="0,0,0,8">
                         <TextBox FontSize="16" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Минимум 3 символа" />
-                        <TextBlock Text="Поиск начинается автоматически от 3 символов" Foreground="#666" FontSize="11" Margin="2,3,0,0" />
                     </StackPanel>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -79,7 +78,8 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Content="Обновить" Command="{Binding RescanCommand}" />
+                        <Button Content="Обновить список" Width="150" Height="30" Command="{Binding RescanCommand}" />
+                        <Button Content="Обновить библиотеки" Width="150" Height="30" Margin="8,0,0,0" Command="{Binding UpdateAllCommand}" />
                     </StackPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding InstalledLibraries}" Margin="0,0,8,0">
@@ -110,9 +110,9 @@
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                                                <Button Content="Обновить" Width="74" Height="28" Margin="0,0,4,0" ToolTip="Установить свежую версию" Command="{Binding DataContext.UpdateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
-                                                <Button Content="Открыть" Width="70" Height="28" Margin="0,0,4,0" ToolTip="Открыть папку библиотеки" Command="{Binding DataContext.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
-                                                <Button Content="Удалить" Width="70" Height="28" Margin="0,0,0,0" ToolTip="Удалить библиотеку" Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="Обновить" Width="74" Height="30" Margin="0,0,4,0" ToolTip="Установить свежую версию" Command="{Binding DataContext.UpdateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="Открыть" Width="70" Height="30" Margin="0,0,4,0" ToolTip="Открыть папку библиотеки" Command="{Binding DataContext.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="Удалить" Width="70" Height="30" Margin="0,0,0,0" ToolTip="Удалить библиотеку" Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -138,10 +138,10 @@
                         <TextBox Text="{Binding RepositoryListUrl, UpdateSourceTrigger=PropertyChanged}" />
                     </DockPanel>
 
-                    <TextBlock Text="GitHub token, опционально" FontWeight="SemiBold" Margin="4,16,4,0" />
-                    <TextBox Text="{Binding GitHubToken, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Foreground="#666" TextWrapping="Wrap" Margin="4,0,4,12"
-                               Text="Токен нужен для повышения лимитов GitHub API" />
+                    <TextBlock Text="GitHub token (опционально, для повышения лимитов)" FontWeight="SemiBold" Margin="4,16,4,0" />
+                    <TextBox Text="{Binding GitHubToken, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+
+                    <CheckBox Content="Проверять обновления при запуске" IsChecked="{Binding CheckUpdatesOnStartup}" Margin="4,0,4,12" />
 
                     <Button Content="Сохранить настройки" Width="180" HorizontalAlignment="Left" Command="{Binding SaveSettingsCommand}" />
                 </StackPanel>

@@ -41,3 +41,6 @@
 - Не все репозитории имеют аккуратные tags/releases
 - Если `library.properties` не содержит GitHub URL, обновления такой библиотеки могут не проверяться
 - Если dependency name сильно отличается от repo name, автоматический поиск зависимости может не сработать
+
+## Запуск исходника
+Нужен SDK .NET 8. Далее запускаем `dotnet restore && dotnet run --project src/ArdulibsManager.App`.

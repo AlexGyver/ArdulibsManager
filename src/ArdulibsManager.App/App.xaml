@@ -1,7 +1,6 @@
 <Application x:Class="ArdulibsManager.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="Views/MainWindow.xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <SolidColorBrush x:Key="AccentBrush" Color="#2D7D46" />
         <SolidColorBrush x:Key="MutedBrush" Color="#666666" />
@@ -9,6 +8,8 @@
             <Setter Property="Padding" Value="10,6"/>
             <Setter Property="Margin" Value="4"/>
             <Setter Property="MinWidth" Value="90"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style TargetType="TextBox">
             <Setter Property="Padding" Value="8,5"/>

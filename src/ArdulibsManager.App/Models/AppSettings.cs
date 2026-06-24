@@ -14,4 +14,5 @@ public sealed class AppSettings
     public string? GitHubToken { get; set; }
     public bool BackupBeforeReplace { get; set; } = true;
     public bool IncludePrerelease { get; set; } = false;
+    public bool CheckUpdatesOnStartup { get; set; } = true;
 }
