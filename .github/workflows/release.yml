@@ -1,0 +1,73 @@
+name: Build ArdulibsManager Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            arch: x64
+          - rid: win-x86
+            arch: x86
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore ./src/ArdulibsManager.App/ArdulibsManager.App.csproj
+
+      - name: Publish ${{ matrix.arch }}
+        run: |
+          dotnet publish ./src/ArdulibsManager.App/ArdulibsManager.App.csproj `
+            -c Release `
+            -r ${{ matrix.rid }} `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o ./publish/${{ matrix.rid }}
+
+      - name: Rename EXE ${{ matrix.arch }}
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem ./publish/${{ matrix.rid }} -Filter *.exe | Select-Object -First 1
+
+          if (-not $exe) {
+            throw "No EXE file found in publish folder"
+          }
+
+          Move-Item `
+            -Path $exe.FullName `
+            -Destination ./ArdulibsManager-${{ matrix.arch }}.exe `
+            -Force
+
+      - name: Upload EXE to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./ArdulibsManager-${{ matrix.arch }}.exe
